@@ -1,5 +1,11 @@
 #include "simple_shell.h"
 
+int (*builtin_func[])(char**)={
+	&shell_cd,
+	&shell_help,
+	&shell_exit
+};
+
 char* shell_read_line(){
 	int c,count=1,position=0;
 	
@@ -65,6 +71,79 @@ char** shell_split_line(char* line){
 	return tokens;
 }
 
+int shell_num_builtins(){
+	return sizeof(builtin_str)/sizeof(char*);
+}
+
+int shell_launch(char** args){
+	int status=0;
+	pid_t pid;
+
+	pid=fork();
+	if(pid<0){
+		perror("mysh:");
+	}
+	else if(pid==0){
+		if(execvp(args[0],args)==-1){
+			perror("mysh:");
+		}
+	}
+	else{
+		do{
+			waitpid(pid,&status,WUNTRACED);
+		}while(!WIFEXITED(status)&&!(WIFSIGNALED(status)));
+	}
+	return 1;
+}
+
+int shell_cd(char** args){
+	if(args[1]==NULL){
+		fprintf(stderr, "mysh: expected argument to \"cd\"\n" );
+	}
+	else{
+		if(chdir(args[1])!=0){
+			perror("mysh:");
+		}
+	}
+
+	return 1;
+}
+
+int shell_help(char** args){
+	int i=0;
+
+	printf("Simple shell\n");
+	printf("Type program names and argument\n");
+
+	printf("The following are built in:\n");
+	while(i<shell_num_builtins()){
+		printf("	%s\n", builtin_str[i]);
+		i+=1;
+	}
+	return 1;
+}
+
+int shell_exit(char** args){
+	return EXIT_SUCCESS;
+}
+
+int shell_execut(char** args){
+	int i=0;
+
+	if(args[0]==NULL){
+		return 1;
+	}
+
+	while(i<shell_num_builtins()){
+		if(strncmp(args[0],builtin_str[i],sizeof(args[0])/sizeof(char))==0){
+			return (*builtin_func[i])(args);
+		}
+		i+=1;
+	}
+
+	return shell_launch(args);
+}
+
 int main(int argc,char** argv){
 
 	shell_loop();
@@ -79,7 +158,10 @@ void shell_loop(){
 	do{
 		printf("> ");
 		line=shell_read_line();
-		printf("%s\n",line );
+
+		//Debug code//
+		//printf("%s\n",line );
+		
 		args=shell_split_line(line);
 
 		//Debug code//
@@ -88,7 +170,9 @@ void shell_loop(){
 			printf("%s\n", * temp);
 			temp+=1;
 		}
-		//status=shell_execut(args);
+		printf("\n");
+		
+		status=shell_execut(args);
 
 		free(line);
 		free(args);
